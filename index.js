@@ -34,15 +34,29 @@ function buildComponentTables({document, apis}) {
       if(path.trim().length > 0) {
         const endpoint = getEndpoint({apis, path});
         for(const verb in endpoint) {
-          let expectedCaller = endpoint[verb]['x-expectedCaller'];
+          let expectedCallerIn = endpoint[verb]['x-expectedCaller'];
+          let expectedCallerOut = structuredClone(expectedCallerIn);
           const tableRow = document.createElement('tr');
-          if(expectedCaller === undefined) {
-            expectedCaller = "Expected Caller Undefined";
-          } else if(Array.isArray(expectedCaller)) {
-            expectedCaller = expectedCaller.join(', ');
+          if(expectedCallerIn === undefined) {
+            expectedCallerOut = "Expected Caller Undefined";
+          } else if(Array.isArray(expectedCallerIn)) {
+            // Need to handle the special case where the same endpoint is listed on multiple components.
+            // This could be removed if we changed the yaml to have more specific x- arguments, but it's not clear if that is worth the overhead.
+            // Currently two endpoints have conflics: GET /credentials/{id}, DELETE /credentials/{id}
+            //     These two endpoints both exist on the Issuer and Holder Services, having only one x-expectedCaller list means that
+            //     both of these endpoints have the set x-expectedCaller: [Issuer Coordinator, Holder Coordinator, Workflow Service]
+            //     the below code is removing "Issuer Coordinator" for the Holder Service component, and "Holder Coordinator", for the Issuer Service component.
+            if(table.parentElement.id === "issuer-service" && path == "/credentials/{id}"){
+              expectedCallerOut.splice(1,1);
+            }
+            if(table.parentElement.id === "holder-service" && path == "/credentials/{id}"){
+              expectedCallerOut.shift();
+            }
+
+            expectedCallerOut = expectedCallerOut.join(', ');
           }
           tableRow.innerHTML = `<td>${verb.toUpperCase()}&nbsp;${path}</td>` +
-            `<td>${expectedCaller}</td>`;
+            `<td>${expectedCallerOut}</td>`;
           tableBody.appendChild(tableRow);
         }
       }
